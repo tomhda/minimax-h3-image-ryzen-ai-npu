@@ -1,0 +1,36 @@
+# Notice
+
+MiniMax-H3-Image is licensed under the MiniMax-H3-Image Community License Agreement, Copyright © 2026 MiniMax. All Rights Reserved.
+
+This is an unofficial port of MiniMax-H3-Image for AMD Ryzen AI. The scripts are at https://github.com/tomhda/minimax-h3-image-ryzen-ai-npu and the NPU parts are at https://huggingface.co/Tomoali/MiniMax-H3-Image-ryzen-ai-npu.
+
+## Sources
+
+| Source | Revision | License | Used for | Redistribution |
+|---|---|---|---|---|
+| MiniMaxAI/MiniMax-H3-Image | 5f90473023975e6271b0ed1dd84c4e88e4bbc6d3 | MiniMax-H3-Image Community License Agreement | DiT, refiner, fused output heads, schedule, image tokenizer and image VAE | Derived NPU and host tensors are distributed on Hugging Face under the model license. Setup fetches the tokenizer and VAE originals from MiniMax. |
+| MiniMaxAI/MiniMax-H3 | 0919fb684102ef115126612f3fbb84d1027e7317 | MiniMax H3 COMMUNITY LICENSE AGREEMENT. Its Additional Note identifies Qwen3-VL-32B as Apache-2.0. | Qwen3-VL-32B text encoder embeddings and layers 0–49 | Setup fetches the encoder files from MiniMax. |
+| huggingface/diffusers | 43e30028af5120d8b0868cb6975b9fad39cc4fab | Apache-2.0 (LICENSE-Apache-2.0.txt in the GitHub repository) | Refiner and position embeddings, scheduler for rebuilding, CPU VAE | Setup installs Diffusers at the fixed revision. The refiner weight-key mapping in src/stage_text.py adapts scripts/convert_minimax_h3_to_diffusers.py. |
+| AMD Ryzen AI Software | 1.8.0 | AMD's license | Ryzen AI Light EP, ONNX Runtime, DynamicDispatch and partition tools | Install the SDK from AMD. tools/convert/strategies/attention.yaml adapts AMD's strategy and retains AMD's copyright notice. |
+| tomhda/minimax-h3-image-ryzen-ai-npu | | MIT (LICENSE in the GitHub repository) | Original setup, runtime and conversion scripts | The scripts are distributed on GitHub. |
+
+By default setup obtains these unmodified model files from the pinned MiniMax revisions.
+
+- MiniMax-H3-Image provides tokenizer/tokenizer.json, tokenizer/tokenizer_config.json, vae_diffusers/config.json and vae_diffusers/diffusion_pytorch_model.safetensors. Both decoder paths use the VAE config for latent normalization. The original VAE weights are for the CPU decoder and local conversion.
+- MiniMax-H3 provides text_encoder/config.json, text_encoder/model.safetensors.index.json and text_encoder/model-00001-of-00014.safetensors through text_encoder/model-00011-of-00014.safetensors.
+- Rebuilding also uses MiniMax-H3-Image's pdd_config.json, pdd_fused_heads.safetensors, transformer/model.safetensors.index.json and transformer/model-00001-of-00012.safetensors through transformer/model-00012-of-00012.safetensors.
+
+## Changes in the NPU parts
+
+- The four linear projections in each of the 50 DiT blocks and 24 VAE blocks use packed int4 weights with bf16 inputs and outputs. Quantization is asymmetric with groups of 128 input channels. The DiT projections are split by input or output width and zero-padded to shapes supported by the NPU kernels.
+- DiT attention uses an ONNX graph for 24 heads at a time in a fixed 1,280-row frame. Three calls cover all 56 heads. The graph applies Q/K normalization and rotary embeddings. The final group is padded to the kernel width. An attention pass on validity marks corrects the denominator for padded rows.
+- AMD's partitioner and DynamicDispatch compiler generate the attention graphs, constants and compiled state. The decoder uses an SD attention graph to keep the DynamicDispatch session active while the decoder computes attention on the CPU.
+- The parts include the condition projection and two-layer token refiner tensors with their original dtypes, the DiT input and output projections and per-step output heads, the CPU modulation and timestep tensors, and the decoder's remaining weights and biases.
+
+## Changes in the pipeline
+
+- The CPU streams embeddings and the first 50 encoder layers from the MiniMax-H3 text encoder, then runs the image model's token refiner. The DiT executes the six-step schedule with one layer's NPU sessions resident at a time. By default a fresh worker takes over after step 3.
+- The decoder blends 25 overlapping tiles. Its four projections per layer use the NPU by default and its attention runs on the CPU. The CPU option loads the original VAE.
+- The scripts generate direct 1024×1024 images from the supplied prompt and seed.
+
+AMD and Ryzen are trademarks of Advanced Micro Devices, Inc.

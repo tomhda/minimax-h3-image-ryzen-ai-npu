@@ -1,0 +1,60 @@
+# Copyright (C) 2024 - 2026 Advanced Micro Devices, Inc. All rights reserved.
+# Modified from the SD strategy in ryzenai_onnx_utils 1.8.0.
+# DynamicDispatch partition order for the fixed attention graphs.
+# Adapted from the Ryzen AI Software 1.8.0 SD partition strategy.
+# CPU handles elementwise modulation and residual operations.
+---
+attributes:
+    domains: com.ryzenai
+    xclbins: "stx_SD_unified_fastpm_2x4x4"
+    op_namespaces: "sd3"
+    model_type: FLUX_TRANSFORMER
+    flux2: flux2
+    op_config: "ops-config.json"
+passes:
+    - sd3.pad_conv_ic
+    - sd15.conv_to_sd_conv2d
+    - flux.add_sub_slice_to_slice
+    - sd3.slice_matmul_add_to_sd_slice_gemm
+    - sd_bfp.slice_gemm_bfp
+    - sd3.ditfusion_sib_bf
+    - sd3.ditfusion_tbib_bf
+    - sd15.layernorm_to_sd_layernorm
+    - sd_bfp.layernorm_bfp
+    - sd15.resize_to_sd_resize
+    - sd15.matmul_add_to_sd_gemm
+    - sd3_5.mha_to_sd_mha_with_gemm_rmsnorm_concat_trans
+    - flux.gemm_rn_concat_to_sd_gemm_rn_concat
+    - sd_bfp.gemm_rn_concat_bfp
+    - sd3_5.mha_to_sd_mha_with_gemm_rmsnorm_trans
+    - flux.gemm_rn_to_sd_gemm_rn
+    - sd_bfp.gemm_rn_bfp
+    - flux.mha_to_sd_mha_with_rope_trans
+    - sd3.mha_to_sd_mha_with_gemm_concat_trans
+    - sd_bfp.gemm_concat_trans_bfp
+    - sd15.mha_to_sd_mha_with_gemm_trans
+    - sd_bfp.gemm_bfp
+    - sd15.mha_to_sd_mha
+    - sd_bfp.mha_bfp
+    - flux.rope_to_sd_rope
+    - flux.concat_wts_for_sd_rope
+    - sd_bfp.rope_bfp
+    - sd15.gelu_to_sd_gelu
+    - sd15.matmul_to_sd_matmul
+    - sd15.groupnorm_to_sd_groupnorm
+    - sd_bfp.groupnorm_bfp
+    - sd3.whitebox_checker
+    - sd3.sdgemm_gemm_mul_add
+    - sd3.sdgemm_mul_add
+    - sd3.sdgemm_concat
+    - sd15.sdgemm
+    - sd15.sdconv
+    - sd15.sdmatmul
+    - sd15.set_preemption_fastpm_attr_for_sd_nodes
+    - remove_reshapes
+    - remove_parallel_casts
+    - simplify_casts
+    - remove_dangling_nodes
+    - remove_unused_io
+    - dd.optimize_toposort
+    - dd.dynamic_sd_nodes_to_dd

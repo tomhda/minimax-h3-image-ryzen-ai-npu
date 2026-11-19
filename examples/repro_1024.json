@@ -1,0 +1,32 @@
+[
+  {
+    "id": "cafe-board",
+    "prompt": "A chalkboard menu standing outside a small cafe that reads 'COFFEE 450円' in white chalk, morning light, realistic photo.",
+    "seed": 1234
+  },
+  {
+    "id": "neon-open",
+    "prompt": "A neon sign in a shop window at night that reads 'OPEN 24 HOURS' in bright red letters, rainy street reflections, realistic photo.",
+    "seed": 1234
+  },
+  {
+    "id": "station-board",
+    "prompt": "A train station departure board showing '東京 9:41' in orange LED letters, people walking below, realistic photo.",
+    "seed": 1234
+  },
+  {
+    "id": "birthday-card",
+    "prompt": "A handwritten birthday card on a wooden desk that says 'Happy Birthday Mekamoto' with '2026.11.15' written below, soft daylight, close-up photo.",
+    "seed": 1234
+  },
+  {
+    "id": "concert-poster",
+    "prompt": "A minimalist concert poster with the title 'SILVER NIGHT' in large bold white letters and 'DEC 24 19:00' in smaller text below, dark blue background, graphic design.",
+    "seed": 1234
+  },
+  {
+    "id": "price-tag",
+    "prompt": "A supermarket shelf price tag that reads 'りんご 3個 298円' in bold black print on a yellow card, red apples behind it, realistic photo.",
+    "seed": 1234
+  }
+]

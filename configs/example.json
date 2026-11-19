@@ -1,0 +1,17 @@
+{
+  "npu_python": "C:/path/to/envs/h3npu-npu/python.exe",
+  "text_python": "C:/path/to/envs/h3npu-text/python.exe",
+  "ryzen_ai_path": "C:/Program Files/RyzenAI/1.8.0",
+  "genai_sd_path": "C:/Program Files/RyzenAI/1.8.0/GenAI-SD",
+  "model_path": "../models/MiniMax-H3-Image",
+  "text_encoder_path": "../models/MiniMax-H3/text_encoder",
+  "parts_path": "../parts",
+  "parts_repo": "Tomoali/MiniMax-H3-Image-ryzen-ai-npu",
+  "parts_revision": "REPLACE_WITH_HF_COMMIT",
+  "image_repo": "MiniMaxAI/MiniMax-H3-Image",
+  "image_revision": "5f90473023975e6271b0ed1dd84c4e88e4bbc6d3",
+  "text_repo": "MiniMaxAI/MiniMax-H3",
+  "text_revision": "0919fb684102ef115126612f3fbb84d1027e7317",
+  "diffusers_revision": "43e30028af5120d8b0868cb6975b9fad39cc4fab",
+  "min_available_gb": 5
+}
