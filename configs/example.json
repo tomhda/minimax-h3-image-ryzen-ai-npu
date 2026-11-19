@@ -7,7 +7,7 @@
   "text_encoder_path": "../models/MiniMax-H3/text_encoder",
   "parts_path": "../parts",
   "parts_repo": "Tomoali/MiniMax-H3-Image-ryzen-ai-npu",
-  "parts_revision": "REPLACE_WITH_HF_COMMIT",
+  "parts_revision": "8a92b6aa3ae53e99f9e1e0030e9cc17b011a90bf",
   "image_repo": "MiniMaxAI/MiniMax-H3-Image",
   "image_revision": "5f90473023975e6271b0ed1dd84c4e88e4bbc6d3",
   "text_repo": "MiniMaxAI/MiniMax-H3",
