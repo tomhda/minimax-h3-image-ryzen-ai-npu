@@ -4,6 +4,8 @@ AMD Ryzen AI NPU (XDNA 2) port of the [MiniMax-H3-Image](https://huggingface.co/
 
 This repository holds the setup, generation and conversion scripts. `setup.ps1` downloads the NPU model files from [Tomoali/MiniMax-H3-Image-ryzen-ai-npu](https://huggingface.co/Tomoali/MiniMax-H3-Image-ryzen-ai-npu).
 
+![Three AI-generated images: a rainy neon street, an anime neon city and a handwritten message card](docs/images/gallery.jpg)
+
 ![Four AI-generated examples: a cafe board, a neon sign, a station board and a birthday card](docs/images/samples.jpg)
 
 The AI-generated samples show `cafe-board`, `neon-open`, `station-board` and `birthday-card` from left to right, all with seed 1234.
