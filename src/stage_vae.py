@@ -1,4 +1,4 @@
-"""Decode the final latent and write a 1024 by 1024 RGB PNG."""
+"""Decode the final latent and write an RGB PNG."""
 import argparse
 import time
 from pathlib import Path

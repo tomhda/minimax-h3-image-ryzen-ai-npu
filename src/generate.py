@@ -1,4 +1,4 @@
-"""Generate 1024 by 1024 images from a JSON item list."""
+"""Generate images from a JSON item list."""
 import argparse
 import msvcrt
 import os
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import psutil
 
-from common import DEFAULT_CONFIG, ROOT, load_config, process_env, read_json, save_json
+from common import DEFAULT_CONFIG, IMAGE_ROWS, MIN_IMAGE_ROWS, ROOT, load_config, process_env, read_json, save_json
 from windows_runtime import KeepAwake, KillOnClose, NpuBusy, NpuLease, process_times, set_affinity
 
 VALID_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,95}")
@@ -33,6 +33,24 @@ def read_items(path):
             raise ValueError(f"Empty prompt for {name}")
         if type(seed) is not int or not -(2**63) <= seed < 2**64:
             raise ValueError(f"Invalid seed for {name}")
+        if ("width" in item) != ("height" in item):
+            raise ValueError(f"Specify both width and height for {name}")
+        width, height = item.get("width", 1024), item.get("height", 1024)
+        for key, value in (("width", width), ("height", height)):
+            if type(value) is not int:
+                raise ValueError(f"{key} must be an integer for {name}")
+            if value < 256:
+                raise ValueError(f"{key} must be at least 256 for {name}")
+            if value % 32:
+                raise ValueError(f"{key} must be a multiple of 32 for {name}")
+        latent_height, latent_width = height // 16, width // 16
+        image_rows = (latent_height // 2) * (latent_width // 2)
+        if image_rows < MIN_IMAGE_ROWS:
+            raise ValueError(f"(width / 32) * (height / 32) must be at least {MIN_IMAGE_ROWS} for {name}")
+        if image_rows > IMAGE_ROWS:
+            raise ValueError(f"(width / 32) * (height / 32) must be at most {IMAGE_ROWS} for {name}")
+        item.update(width=width, height=height, latent_height=latent_height,
+                    latent_width=latent_width, image_rows=image_rows)
         filename = f"{name}_s{seed}".lower()
         if filename in names:
             raise ValueError(f"Duplicate image filename for {name} seed {seed}")
@@ -102,7 +120,8 @@ def generate_item(item, work, config, args):
                       "stage_vae.py", "--out", work, "--kind", args.vae, "--threads", args.vae_threads)
             time.sleep(0.2)
 
-    record = {"id": item["id"], "seed": item["seed"], "status": status,
+    record = {"id": item["id"], "seed": item["seed"], "width": item["width"], "height": item["height"],
+              "status": status,
               "start_unix_s": start_unix, "end_unix_s": time.time(),
               "wall_s": time.perf_counter() - start, "supervisor_cpu_s": time.process_time() - cpu,
               "min_available_bytes": minimum, "stages": records}

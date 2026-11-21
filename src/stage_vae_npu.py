@@ -66,13 +66,15 @@ class Decoder:
         return hidden + self.linear(value * F.silu(gate), "fc2") * s[p + "scale2"]
 
     def decode(self, latent):
-        if tuple(latent.shape) != (1, 24, 64, 64):
-            raise ValueError("The decoder expects latent shape (1, 24, 64, 64)")
+        if latent.ndim != 4 or latent.shape[:2] != (1, 24) or min(latent.shape[-2:]) < 16:
+            raise ValueError("The decoder expects shape (1, 24, height, width), with both dimensions at least 16")
+        y_starts, y_overlaps = tile_layout(latent.shape[-2])
+        x_starts, x_overlaps = tile_layout(latent.shape[-1])
         s = self.small
         stamp = clock()
         tiles = []
-        for y in range(0, 49, 12):
-            for x in range(0, 49, 12):
+        for y in y_starts:
+            for x in x_starts:
                 z = F.conv2d(latent[:, :, y:y + 16, x:x + 16],
                              s["post_quant_conv.weight"], s["post_quant_conv.bias"])
                 z = F.linear(z.permute(0, 2, 3, 1).reshape(1, 256, 24), s["proj_in.weight"], s["proj_in.bias"])
@@ -106,8 +108,23 @@ class Decoder:
             value = F.linear(value, s["proj_out.weight"], s["proj_out.bias"])[:, :256]
             value = value.view(1, 16, 16, 3, 16, 16).permute(0, 3, 1, 4, 2, 5)
             tiles.append(value.contiguous().reshape(1, 3, 256, 256))
-        image = stitch(tiles)
+        image = stitch(tiles, y_overlaps, x_overlaps)
         return image, records, pre, duration(stamp)
+
+
+def tile_layout(length):
+    # Match Diffusers' round-robin overlap distribution in latent units.
+    tile, min_overlap = 16, 4
+    if length == tile:
+        return [0], []
+    stride = tile - min_overlap
+    gaps = (length - tile + stride - 1) // stride
+    shared, extra = divmod(tile + gaps * stride - length, gaps)
+    overlaps = [min_overlap + shared + (i < extra) for i in range(gaps)]
+    starts = [0]
+    for overlap in overlaps:
+        starts.append(starts[-1] + tile - overlap)
+    return starts, [overlap * 16 for overlap in overlaps]
 
 
 def blend(before, after, overlap, dim):
@@ -125,20 +142,21 @@ def blend(before, after, overlap, dim):
     return torch.cat((boundary, after[tuple(b)]), dim)
 
 
-def stitch(tiles):
-    grid = [tiles[i:i + 5] for i in range(0, len(tiles), 5)]
+def stitch(tiles, y_overlaps, x_overlaps):
+    columns_per_row = len(x_overlaps) + 1
+    grid = [tiles[i:i + columns_per_row] for i in range(0, len(tiles), columns_per_row)]
     rows = []
     for y, row in enumerate(grid):
         columns = []
         for x, tile in enumerate(row):
             if y:
-                tile = blend(grid[y - 1][x], tile, 64, -2)
+                tile = blend(grid[y - 1][x], tile, y_overlaps[y - 1], -2)
             if x:
-                tile = blend(row[x - 1], tile, 64, -1)
-            if y < 4:
-                tile = tile[:, :, :-64, :]
-            if x < 4:
-                tile = tile[:, :, :, :-64]
+                tile = blend(row[x - 1], tile, x_overlaps[x - 1], -1)
+            if y < len(y_overlaps):
+                tile = tile[:, :, :-y_overlaps[y], :]
+            if x < len(x_overlaps):
+                tile = tile[:, :, :, :-x_overlaps[x]]
             columns.append(tile)
         rows.append(torch.cat(columns, -1))
     return torch.cat(rows, -2)

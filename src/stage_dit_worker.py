@@ -41,7 +41,7 @@ def main():
     wait_for(args.item.parent / "text.ready")
     item = read_json(args.item)
     start = clock()
-    outer = Outer(parts, args.item.parent, item["seed"],
+    outer = Outer(parts, args.item.parent, item,
                   args.previous / "checkpoint.npy" if args.previous else None)
     outer_load = duration(start)
     start = clock()

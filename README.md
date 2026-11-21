@@ -1,6 +1,6 @@
 # MiniMax-H3-Image on the AMD Ryzen AI NPU
 
-AMD Ryzen AI NPU (XDNA 2) port of the [MiniMax-H3-Image](https://huggingface.co/MiniMaxAI/MiniMax-H3-Image) six-step text-to-image model at 1024×1024.
+AMD Ryzen AI NPU (XDNA 2) port of the [MiniMax-H3-Image](https://huggingface.co/MiniMaxAI/MiniMax-H3-Image) six-step text-to-image model. It generates 1024×1024 images by default, and portrait or landscape sizes up to the same pixel count, such as 768×1344 and 1344×768.
 
 This repository holds the setup, generation and conversion scripts. `setup.ps1` downloads the NPU model files from [Tomoali/MiniMax-H3-Image-ryzen-ai-npu](https://huggingface.co/Tomoali/MiniMax-H3-Image-ryzen-ai-npu).
 
@@ -16,7 +16,7 @@ The AI-generated samples show `cafe-board`, `neon-open`, `station-board` and `bi
 |---|---|---|
 | Qwen3-VL-32B text encoder and token refiner | CPU | The first 50 text layers stream bf16 weights and compute in fp32. Up to 256 tokenizer tokens |
 | Diffusion transformer | NPU and CPU | 50 layers × six steps. Four int4/bf16 projections and DynamicDispatch attention on the NPU. The CPU handles modulation, normalization outside attention, activation, residuals and the schedule |
-| ViT decoder | NPU and CPU | 24 layers on 25 overlapping tiles. The four int4/bf16 projections run on the NPU and attention runs on the CPU. `-Vae cpu` uses the Diffusers fp32 decoder |
+| ViT decoder | NPU and CPU | 24 layers on overlapping 256×256 tiles, 25 at 1024×1024. The four int4/bf16 projections run on the NPU and attention runs on the CPU. `-Vae cpu` uses the Diffusers fp32 decoder |
 
 [How it works](docs/how-it-works.md) describes the graph splits, memory use and process lifetime.
 
@@ -105,6 +105,46 @@ The six sample prompts can be run in one invocation.
 ```powershell
 pwsh -NoProfile -File .\gen.ps1 -Items .\examples\repro_1024.json -Out .\outputs\repro
 ```
+
+## Image size
+
+`width` and `height` in an item set the size of that image. Without them it is 1024×1024.
+
+```json
+[
+  {
+    "id": "cafe-board",
+    "prompt": "A chalkboard menu standing outside a small cafe that reads 'COFFEE 450円' in white chalk, morning light, realistic photo.",
+    "seed": 1234,
+    "width": 768,
+    "height": 1344
+  }
+]
+```
+
+- Both values are multiples of 32 and at least 256.
+- `width` × `height` is between 589,824 and 1,048,576, the pixel counts of 576×1024 and 1024×1024.
+- An item with only one of the two values, or with a size outside these limits, ends the run with exit code `2` before any image is generated.
+
+![Two AI-generated images: a portrait cafe board and a landscape birthday card](docs/images/sizes.jpg)
+
+The AI-generated samples show `cafe-board` at 768×1344 and `birthday-card` at 1344×768, both with seed 1234.
+
+All sizes use the same model files. The transformer processes its fixed 1,280-row frame at every size, so a smaller image takes about as long as 1024×1024.
+
+Measured on the verified machine with seed 1234 and the default options, one execution per row. The comparison columns use the same definitions as [Differences from the official pipeline](#differences-from-the-official-pipeline).
+
+| ID | Size | End-to-end time | Final-latent relative L2 | PNG PSNR | Text in the image |
+|---|---|---:|---:|---:|---|
+| cafe-board | 768×1344 | 341 s | 0.588 | 12.56 dB | COFFEE 450円 |
+| station-board | 1344×768 | 361 s | 0.469 | 15.03 dB | 東京 9:41 |
+| concert-poster | 576×1024 | 348 s | 0.957 | 7.20 dB | SILVER NIGHT / DEC 24 19:00 |
+
+- At 768×1344 and 1344×768 the NPU image and the fp32 image show the same scene in nearly the same layout. At 576×1024 the two layouts differ.
+- `station-board` at 1344×768 shows the requested text, while the signage above the board, a face and the train are distorted. The fp32 CPU implementation shows the same kind of distortion at this size. The 1024×1024 image of the same prompt and seed does not.
+- `neon-open`, `birthday-card` and `price-tag` at 1344×768 took 338–360 s and show the same text as their 1024×1024 images.
+- 256×256 ran to completion and produced no recognizable picture. Sizes below 576×1024 pixels are rejected.
+- 4096×256 took 347 s. The sign appears twice across the strip.
 
 ## Measured
 

@@ -10,6 +10,8 @@ PROJECTIONS = ("qkv", "out", "fc1", "fc2")
 DIT_LAYERS = 50
 VAE_LAYERS = 24
 STEPS = 6
+IMAGE_ROWS = 1024
+MIN_IMAGE_ROWS = 576
 # Entries are input offset, output offset, hardware K and hardware N.
 PROJECTION_SHAPES = {
     "qkv": (5376, 21504, ((0, 0, 2048, 22016), (2048, 0, 4096, 22016))),

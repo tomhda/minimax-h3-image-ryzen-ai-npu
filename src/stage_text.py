@@ -105,7 +105,7 @@ def refiner_weights(reader):
     return state
 
 
-def refine(refiner_path, embeds, record):
+def refine(refiner_path, embeds, height, width, record):
     start = clock()
     from diffusers.models.transformers.transformer_minimax_h3_image import (
         MiniMaxH3ImageRotaryPosEmbed, MiniMaxH3ImageTokenRefiner,
@@ -130,7 +130,7 @@ def refine(refiner_path, embeds, record):
     start = clock()
     result = refiner(context(torch.from_numpy(embeds))).numpy()
     positions, tags, *_ = build_image_packed_sequence(torch.ones(result.shape[1], dtype=torch.long),
-                                                     [], 64, 64, (1, 2, 2), 0)
+                                                     [], height, width, (1, 2, 2), 0)
     cos, sin = MiniMaxH3ImageRotaryPosEmbed(rope_freq_dim=16, rope_theta=10000.0)(positions)
     record["refiner_inference"] = duration(start)
     return result, dict(tags=tags.numpy(), cos=cos.numpy(), sin=sin.numpy())
@@ -151,7 +151,8 @@ def main():
     model = config["model_path"]
     start = clock()
     tokenizer = Qwen2TokenizerFast.from_pretrained(str(model / "tokenizer"), local_files_only=True)
-    tokens = tokenizer(read_json(args.item)["prompt"], add_special_tokens=False)["input_ids"]
+    item = read_json(args.item)
+    tokens = tokenizer(item["prompt"], add_special_tokens=False)["input_ids"]
     record["tokenize"] = duration(start)
     record["tokens"] = len(tokens)
     if len(tokens) > TEXT_LIMIT:
@@ -163,7 +164,7 @@ def main():
         embeds = encode(config["text_encoder_path"], tokens, args.read_workers, record)
         if not np.isfinite(embeds).all():
             raise RuntimeError("Non-finite text embeddings")
-        refined, geometry = refine(Parts(config).refiner, embeds, record)
+        refined, geometry = refine(Parts(config).refiner, embeds, item["latent_height"], item["latent_width"], record)
         if not np.isfinite(refined).all():
             raise RuntimeError("Non-finite refiner output")
     start = clock()

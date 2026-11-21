@@ -3,13 +3,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from common import PROJECTIONS
+from common import IMAGE_ROWS, PROJECTIONS
 
 WIDTH = 5376
 HEADS = 56
 HEAD_DIM = 128
 FFN_WIDTH = 14336
-IMAGE_ROWS = 1024
 TEXT_LIMIT = 256
 FRAME_ROWS = IMAGE_ROWS + TEXT_LIMIT
 PROJECTION_KEYS = dict(zip(PROJECTIONS, ("attn.qkv_proj.weight", "attn.out_proj.weight",
@@ -20,20 +19,22 @@ ROPE_ORDER = np.concatenate((np.stack((np.arange(48), np.arange(48, 96)), axis=-
 
 
 class Outer:
-    def __init__(self, parts, text_path, seed, checkpoint=None):
+    def __init__(self, parts, text_path, item, checkpoint=None):
         with np.load(parts.outer / "modules.npz") as arrays:
             self.weights = {key: torch.from_numpy(arrays[key].copy()) for key in arrays.files}
         self.text = torch.from_numpy(np.load(text_path / "refined.npy"))
         self.nt = self.text.shape[1]
-        self.rows = self.nt + IMAGE_ROWS
+        self.rows = self.nt + item["image_rows"]
+        self.height, self.width = item["latent_height"], item["latent_width"]
         self.tembs = torch.from_numpy(np.load(parts.outer / "tembs.npy"))
         self.sigmas = torch.from_numpy(np.load(parts.outer / "sigmas.npy"))
         if checkpoint:
             self.latents = torch.from_numpy(np.load(checkpoint))
         else:
-            noise = torch.randn((1, 24, 1, 64, 64), generator=torch.Generator(device="cpu").manual_seed(seed),
-                                dtype=torch.float32)
-            self.latents = noise.reshape(1, 24, 1, 32, 2, 32, 2).permute(0, 2, 3, 5, 1, 4, 6)
+            noise = torch.randn((1, 24, 1, self.height, self.width),
+                                generator=torch.Generator(device="cpu").manual_seed(item["seed"]), dtype=torch.float32)
+            self.latents = noise.reshape(1, 24, 1, self.height // 2, 2, self.width // 2, 2)
+            self.latents = self.latents.permute(0, 2, 3, 5, 1, 4, 6)
             self.latents = self.latents.reshape(-1, 96).contiguous()
         with np.load(text_path / "geometry.npz") as geometry:
             self.geometry = {key: torch.from_numpy(geometry[key]) for key in geometry.files}
@@ -59,5 +60,6 @@ class Outer:
         self.latents = self.latents.float() + (self.sigmas[step] - self.sigmas[step + 1]) * velocity.float()
 
     def vae_input(self):
-        return self.latents.reshape(-1, 32, 32, 24, 2, 2).permute(0, 3, 1, 4, 2, 5).reshape(-1, 24, 64, 64).contiguous()
+        tiles = self.latents.reshape(-1, self.height // 2, self.width // 2, 24, 2, 2)
+        return tiles.permute(0, 3, 1, 4, 2, 5).reshape(-1, 24, self.height, self.width).contiguous()
 

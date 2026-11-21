@@ -35,6 +35,12 @@ On a single processor group with unequal EfficiencyClass values, the generation 
 
 A 64×64 latent is denormalized and decoded as a 5×5 grid of 16×16 latent tiles. Each produces a 256×256 image tile. The decoder batches the 25 tiles through one layer at a time, runs the four int4 linear projections on the NPU and computes attention on the CPU. Neighboring image tiles are blended across 64 pixels to produce the 1024×1024 RGB image. The CPU option uses the Diffusers fp32 decoder on the same tile grid.
 
+## Image sizes
+
+An image of width W and height H has (W/32) × (H/32) image tokens. The frame holds the text rows first, the image rows next and zero rows last, and the attention graph takes the rotary cos/sin values and the validity mark of every row as inputs. Any size with at most 1,024 image tokens runs on the same compiled graphs. The host computes the rotary values for the latent grid of the requested size. Rows after the image are handled by the validity mark, the same as text padding. The timestep embeddings, modulation arrays and schedule do not depend on the size.
+
+The decoder keeps 256×256 image tiles. Along each axis it uses the tile count and overlaps that Diffusers uses for that length: four tiles for 768 pixels with overlaps of 96, 80 and 80 pixels, and seven tiles for 1,344 pixels with overlaps of 80, 80, 80, 80, 64 and 64 pixels.
+
 ## Conversion and runtime limits
 
 Ryzen AI Software supplies instruction streams for specific tensor dimensions. A single projection at the transformer's original widths does not fit the available kernel shapes. CPU-side concatenation and addition assemble the supported subprojections. The 56-head attention likewise uses the available 24-head SD kernel.
